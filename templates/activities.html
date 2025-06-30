@@ -1,0 +1,426 @@
+<!-- templates/activities.html -->
+{% extends "base.html" %}
+
+{% block title %}Aggregio - Activities{% endblock %}
+
+{% block content %}
+<div class="activities-container">
+    <div class="header">
+        <h1>Your Activities</h1>
+        <div class="header-controls">
+            <span class="page-info">Page {{ current_page }}</span>
+            <a href="/profile" class="btn btn-back">← Back to Profile</a>
+        </div>
+    </div>
+    
+    {% if error %}
+        <div class="error">{{ error }}</div>
+    {% endif %}
+    
+    {% if activities %}
+        <div class="activities-grid">
+            {% for activity in activities %}
+            <div class="activity-card">
+                <a href="/activity/{{ activity.id }}" class="activity-link">
+                    <div class="activity-header">
+                        <h3>{{ activity.name }}</h3>
+                        <div class="activity-meta">
+                            <span class="activity-type">{{ activity.type }}</span>
+                            <span class="activity-date">{{ activity.start_date_local[:10] }}</span>
+                        </div>
+                    </div>
+                    <div class="activity-stats">
+                        <div class="stat">
+                            <label>Distance</label>
+                            <value>{{ "%.2f"|format(activity.distance * 0.000621371) }} mi</value>
+                        </div>
+                        <div class="stat">
+                            <label>Duration</label>
+                            <value>{{ activity.elapsed_time // 60 }} min</value>
+                        </div>
+                        {% if activity.average_speed %}
+                            {% if activity.type in ['Run', 'Hike', 'Walk', 'TrailRun'] %}
+                                {% set pace_seconds = (1609.34 / activity.average_speed) %}
+                                {% set pace_minutes = (pace_seconds // 60)|int %}
+                                {% set pace_secs = (pace_seconds % 60)|int %}
+                                <div class="stat">
+                                    <label>Pace</label>
+                                    <value>{{ pace_minutes }}:{{ "%02d"|format(pace_secs) }}/mi</value>
+                                </div>
+                            {% else %}
+                                <div class="stat">
+                                    <label>Avg Speed</label>
+                                    <value>{{ "%.2f"|format(activity.average_speed * 2.23694) }} mph</value>
+                                </div>
+                            {% endif %}
+                        {% endif %}
+                        {% if activity.total_elevation_gain %}
+                            <div class="stat">
+                                <label>Elevation</label>
+                                <value>{{ "%.0f"|format(activity.total_elevation_gain * 3.28084) }} ft</value>
+                            </div>
+                        {% endif %}
+                    </div>
+                </a>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <!-- Pagination Controls -->
+        <div class="pagination">
+            {% if has_prev %}
+                <a href="/activities/{{ prev_page }}" class="btn btn-nav">
+                    <span>←</span> Previous
+                </a>
+            {% else %}
+                <span class="btn btn-nav btn-disabled">
+                    <span>←</span> Previous
+                </span>
+            {% endif %}
+            
+            <span class="page-indicator">Page {{ current_page }}</span>
+            
+            {% if has_next %}
+                <a href="/activities/{{ next_page }}" class="btn btn-nav">
+                    Next <span>→</span>
+                </a>
+            {% else %}
+                <span class="btn btn-nav btn-disabled">
+                    Next <span>→</span>
+                </span>
+            {% endif %}
+        </div>
+    {% else %}
+        <div class="no-activities">
+            <p>No activities found.</p>
+        </div>
+    {% endif %}
+</div>
+
+<style>
+html, body {
+    height: 100%;
+    overflow: hidden;
+}
+
+.activities-container {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #e5e7eb;
+    padding-bottom: 20px;
+    flex-shrink: 0;
+}
+
+.header h1 {
+    margin: 0;
+    color: #1f2937;
+}
+
+.header-controls {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.page-info {
+    color: #6b7280;
+    font-size: 0.875rem;
+}
+
+.activities-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 20px;
+    flex: 1;
+    overflow: hidden;
+}
+
+.activity-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    overflow: hidden;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.activity-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    border-color: #d1d5db;
+}
+
+.activity-link {
+    text-decoration: none;
+    color: inherit;
+    display: block;
+    padding: 20px;
+    height: 100%;
+}
+
+.activity-link:hover {
+    text-decoration: none;
+    color: inherit;
+}
+
+.activity-header {
+    margin-bottom: 15px;
+}
+
+.activity-header h3 {
+    margin: 0 0 8px 0;
+    color: #1f2937;
+    font-size: 1.125rem;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.activity-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.activity-type {
+    background-color: #fc4c02;
+    color: white;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: uppercase;
+}
+
+.activity-date {
+    color: #6b7280;
+    font-size: 0.875rem;
+}
+
+.activity-stats {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+}
+
+.stat {
+    background-color: #f9fafb;
+    padding: 12px;
+    border-radius: 8px;
+    text-align: center;
+}
+
+.stat label {
+    display: block;
+    font-size: 0.75rem;
+    color: #6b7280;
+    margin-bottom: 4px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+}
+
+.stat value {
+    display: block;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
+    padding: 20px 0 0 0;
+    flex-shrink: 0;
+}
+
+.btn-nav {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background-color: #fc4c02;
+    color: white;
+    text-decoration: none;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-weight: 500;
+    transition: all 0.2s;
+    min-width: 120px;
+    justify-content: center;
+}
+
+.btn-nav:hover:not(.btn-disabled) {
+    background-color: #ea580c;
+    text-decoration: none;
+    color: white;
+    transform: translateY(-1px);
+}
+
+.btn-nav.btn-disabled {
+    background-color: #d1d5db;
+    color: #9ca3af;
+    cursor: not-allowed;
+}
+
+.page-indicator {
+    color: #4b5563;
+    font-weight: 500;
+    padding: 12px 20px;
+    background-color: #f3f4f6;
+    border-radius: 8px;
+}
+
+.btn-back {
+    background-color: #6b7280;
+    color: white;
+    text-decoration: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    transition: background-color 0.2s;
+}
+
+.btn-back:hover {
+    background-color: #4b5563;
+    text-decoration: none;
+    color: white;
+}
+
+.error {
+    background-color: #fef2f2;
+    color: #dc2626;
+    padding: 16px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    border: 1px solid #fecaca;
+}
+
+.no-activities {
+    text-align: center;
+    padding: 60px 20px;
+    color: #6b7280;
+}
+
+@media (max-width: 768px) {
+    .activities-container {
+        padding: 15px;
+    }
+    
+    .header {
+        flex-direction: column;
+        gap: 15px;
+        align-items: stretch;
+        margin-bottom: 15px;
+        padding-bottom: 15px;
+    }
+    
+    .header-controls {
+        justify-content: space-between;
+    }
+    
+    .activities-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+    
+    .activity-stats {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+    }
+    
+    .pagination {
+        gap: 12px;
+        padding-top: 15px;
+    }
+    
+    .btn-nav {
+        min-width: 100px;
+        padding: 10px 16px;
+        font-size: 0.875rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .activity-meta {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+    
+    .pagination {
+        flex-direction: column;
+        gap: 12px;
+    }
+    
+    .btn-nav, .page-indicator {
+        width: 100%;
+    }
+}
+</style>
+
+<script>
+function updateActivitiesWithViewport() {
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    
+    // Get current URL and add/update viewport parameters
+    const url = new URL(window.location);
+    const currentWidth = parseInt(url.searchParams.get('width')) || 0;
+    const currentHeight = parseInt(url.searchParams.get('height')) || 0;
+    
+    // Only reload if viewport parameters have changed significantly
+    // Use smaller threshold since we want to be more responsive to fill the exact viewport
+    if (Math.abs(currentWidth - width) > 50 || Math.abs(currentHeight - height) > 50) {
+        url.searchParams.set('width', width);
+        url.searchParams.set('height', height);
+        window.location.href = url.toString();
+    }
+}
+
+// Send viewport dimensions on page load
+document.addEventListener('DOMContentLoaded', function() {
+    // Check if viewport parameters are missing from URL
+    const url = new URL(window.location);
+    if (!url.searchParams.has('width') || !url.searchParams.has('height')) {
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+        url.searchParams.set('width', width);
+        url.searchParams.set('height', height);
+        window.location.href = url.toString();
+        return;
+    }
+    
+    // Update all pagination links to include current viewport parameters
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    
+    const paginationLinks = document.querySelectorAll('a[href*="/activities"]');
+    paginationLinks.forEach(link => {
+        const linkUrl = new URL(link.href, window.location.origin);
+        linkUrl.searchParams.set('width', width);
+        linkUrl.searchParams.set('height', height);
+        link.href = linkUrl.toString();
+    });
+});
+
+// Update on significant resize (debounced)
+let resizeTimeout;
+window.addEventListener('resize', function() {
+    clearTimeout(resizeTimeout);
+    resizeTimeout = setTimeout(updateActivitiesWithViewport, 500);
+});
+</script>
+{% endblock %}

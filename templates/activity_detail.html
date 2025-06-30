@@ -1,0 +1,307 @@
+<!-- templates/activity_detail.html -->
+{% extends "base.html" %}
+
+{% block title %}{{ activity.name }} - Aggregio{% endblock %}
+
+{% block content %}
+<div class="activity-detail-container">
+    <div class="header">
+        <h1>{{ activity.name }}</h1>
+        <a href="/activities" class="btn btn-back">← Back to Activities</a>
+    </div>
+    
+    <div class="activity-content">
+        <div class="activity-info">
+            <div class="activity-meta">
+                <span class="activity-type">{{ activity.type }}</span>
+                <span class="activity-date">{{ activity.start_date_local }}</span>
+            </div>
+            
+            <div class="activity-stats-grid">
+                <div class="stat">
+                    <label>Distance</label>
+                    <value>{{ "%.2f"|format(activity.distance * 0.000621371) }} mi</value>
+                </div>
+                <div class="stat">
+                    <label>Duration</label>
+                    <value>{{ activity.elapsed_time // 60 }} min {{ activity.elapsed_time % 60 }} sec</value>
+                </div>
+                <div class="stat">
+                    <label>Moving Time</label>
+                    <value>{{ activity.moving_time // 60 }} min {{ activity.moving_time % 60 }} sec</value>
+                </div>
+                {% if activity.average_speed %}
+                    {% if activity.type in ['Run', 'Hike', 'Walk', 'TrailRun'] %}
+                        {% set pace_seconds = (1609.34 / activity.average_speed) %}
+                        {% set pace_minutes = (pace_seconds // 60)|int %}
+                        {% set pace_secs = (pace_seconds % 60)|int %}
+                        <div class="stat">
+                            <label>Avg Pace</label>
+                            <value>{{ pace_minutes }}:{{ "%02d"|format(pace_secs) }}/mi</value>
+                        </div>
+                    {% else %}
+                        <div class="stat">
+                            <label>Avg Speed</label>
+                            <value>{{ "%.2f"|format(activity.average_speed * 2.23694) }} mph</value>
+                        </div>
+                    {% endif %}
+                {% endif %}
+                {% if activity.max_speed %}
+                    <div class="stat">
+                        <label>Max Speed</label>
+                        <value>{{ "%.2f"|format(activity.max_speed * 2.23694) }} mph</value>
+                    </div>
+                {% endif %}
+                {% if activity.total_elevation_gain %}
+                    <div class="stat">
+                        <label>Elevation Gain</label>
+                        <value>{{ "%.0f"|format(activity.total_elevation_gain * 3.28084) }} ft</value>
+                    </div>
+                {% endif %}
+                {% if activity.average_heartrate %}
+                    <div class="stat">
+                        <label>Avg Heart Rate</label>
+                        <value>{{ "%.0f"|format(activity.average_heartrate) }} bpm</value>
+                    </div>
+                {% endif %}
+                {% if activity.max_heartrate %}
+                    <div class="stat">
+                        <label>Max Heart Rate</label>
+                        <value>{{ "%.0f"|format(activity.max_heartrate) }} bpm</value>
+                    </div>
+                {% endif %}
+            </div>
+            
+            {% if activity.description %}
+                <div class="activity-description">
+                    <h3>Description</h3>
+                    <p>{{ activity.description }}</p>
+                </div>
+            {% endif %}
+        </div>
+        
+        {% if streams.latlng %}
+        <div class="activity-map">
+            <h3>Route Map</h3>
+            <div id="map" style="height: 400px; width: 100%; border-radius: 8px;"></div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if streams.latlng %}
+<script src='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js'></script>
+<link href='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css' rel='stylesheet' />
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    mapboxgl.accessToken = 'pk.eyJ1IjoibWlsb3Bvd2VsbCIsImEiOiJjbWNpOWF6eGgxNWpnMmtwazVqOG41cXV5In0.eAJMAckhIz7FL7PioiWnXg'; 
+    
+    // Parse the coordinate data
+    const coordinates = {{ streams.latlng.data | tojson }};
+    
+    if (coordinates && coordinates.length > 0) {
+        // Convert coordinates to [lng, lat] format for Mapbox
+        const route = coordinates.map(coord => [coord[1], coord[0]]);
+        
+        // Calculate bounds
+        const lngs = route.map(coord => coord[0]);
+        const lats = route.map(coord => coord[1]);
+        const bounds = [
+            [Math.min(...lngs), Math.min(...lats)], // Southwest coordinates
+            [Math.max(...lngs), Math.max(...lats)]  // Northeast coordinates
+        ];
+        
+        // Create map
+        const map = new mapboxgl.Map({
+            container: 'map',
+            style: 'mapbox://styles/mapbox/outdoors-v12', // You can change this style
+            center: [route[0][0], route[0][1]],
+            zoom: 13
+        });
+        
+        map.on('load', function() {
+            // Add route line
+            map.addSource('route', {
+                'type': 'geojson',
+                'data': {
+                    'type': 'Feature',
+                    'properties': {},
+                    'geometry': {
+                        'type': 'LineString',
+                        'coordinates': route
+                    }
+                }
+            });
+            
+            map.addLayer({
+                'id': 'route',
+                'type': 'line',
+                'source': 'route',
+                'layout': {
+                    'line-join': 'round',
+                    'line-cap': 'round'
+                },
+                'paint': {
+                    'line-color': '#fc4c02',
+                    'line-width': 4,
+                    'line-opacity': 0.8
+                }
+            });
+            
+            // Add start marker
+            new mapboxgl.Marker({
+                color: '#22c55e'
+            })
+            .setLngLat([route[0][0], route[0][1]])
+            .addTo(map);
+            
+            // Add finish marker
+            new mapboxgl.Marker({
+                color: '#ef4444'
+            })
+            .setLngLat([route[route.length - 1][0], route[route.length - 1][1]])
+            .addTo(map);
+            
+            // Fit map to show entire route
+            map.fitBounds(bounds, {
+                padding: 40
+            });
+        });
+    }
+});
+</script>
+{% endif %}
+
+<style>
+.activity-detail-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+    border-bottom: 1px solid #e5e7eb;
+    padding-bottom: 20px;
+}
+
+.header h1 {
+    margin: 0;
+    color: #1f2937;
+}
+
+.activity-content {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+}
+
+.activity-meta {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.activity-type {
+    background-color: #fc4c02;
+    color: white;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.activity-date {
+    color: #6b7280;
+    font-size: 0.875rem;
+}
+
+.activity-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.stat {
+    background-color: #f9fafb;
+    padding: 15px;
+    border-radius: 8px;
+    text-align: center;
+}
+
+.stat label {
+    display: block;
+    font-size: 0.875rem;
+    color: #6b7280;
+    margin-bottom: 5px;
+    font-weight: 500;
+}
+
+.stat value {
+    display: block;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.activity-description {
+    background-color: #f9fafb;
+    padding: 20px;
+    border-radius: 8px;
+}
+
+.activity-description h3 {
+    margin: 0 0 10px 0;
+    color: #1f2937;
+}
+
+.activity-description p {
+    margin: 0;
+    color: #4b5563;
+    line-height: 1.6;
+}
+
+.activity-map h3 {
+    margin: 0 0 15px 0;
+    color: #1f2937;
+}
+
+.btn-back {
+    background-color: #6b7280;
+    color: white;
+    text-decoration: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    transition: background-color 0.2s;
+}
+
+.btn-back:hover {
+    background-color: #4b5563;
+    text-decoration: none;
+    color: white;
+}
+
+@media (max-width: 768px) {
+    .activity-content {
+        grid-template-columns: 1fr;
+    }
+    
+    .header {
+        flex-direction: column;
+        gap: 15px;
+        align-items: stretch;
+    }
+    
+    .activity-stats-grid {
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 15px;
+    }
+}
+</style>
+{% endblock %}

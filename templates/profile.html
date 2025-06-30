@@ -1,0 +1,31 @@
+<!-- templates/profile.html -->
+{% extends "base.html" %}
+
+{% block title %}Aggregio - Profile{% endblock %}
+
+{% block content %}
+<div class="profile-container">
+    <div class="profile">
+        <h2>Successfully Connected!</h2>
+        {% if profile.get('profile_medium') %}
+            <img src="{{ profile['profile_medium'] }}" alt="Profile Picture" class="profile-img">
+        {% elif profile.get('profile') %}
+            <img src="{{ profile['profile'] }}" alt="Profile Picture" class="profile-img">
+        {% else %}
+            <div class="no-image">No Image</div>
+        {% endif %}
+        
+        <h3>Welcome, {{ profile.get('firstname', 'User') }} {{ profile.get('lastname', '') }}!</h3>
+        <div class="profile-info">
+            <p><strong>Strava ID:</strong> {{ profile.get('id', 'Unknown') }}</p>
+            <p><strong>Username:</strong> {{ profile.get('username', 'N/A') }}</p>
+        </div>
+        
+        <div class="action-buttons">
+            <a href="/activities" class="btn btn-primary">View Activities</a>
+            <a href="/aggregates" class="btn btn-primary">View Aggregates</a>
+            <a href="/logout" class="btn btn-secondary">Logout</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,379 @@
+<!-- templates/aggregates.html -->
+{% extends "base.html" %}
+
+{% block title %}Aggregio - Aggregates{% endblock %}
+
+{% block content %}
+<div class="aggregates-container">
+    <div class="header">
+        <h1>Activity Aggregates</h1>
+        <div class="header-controls">
+            <a href="/aggregates/new" class="btn btn-primary">+ New Aggregate</a>
+            <a href="/profile" class="btn btn-back">← Back to Profile</a>
+        </div>
+    </div>
+    
+    {% if aggregates %}
+        <div class="aggregates-grid">
+            {% for aggregate in aggregates %}
+            <div class="aggregate-card">
+                <div class="card-header">
+                    <h3>{{ aggregate.name }}</h3>
+                    <div class="card-actions">
+                        <a href="/aggregates/{{ aggregate.id }}/edit" class="btn-icon" title="Edit">✏️</a>
+                        <form method="POST" action="/aggregates/{{ aggregate.id }}/delete" 
+                              onsubmit="return confirm('Are you sure you want to delete this aggregate?')" 
+                              style="display: inline;">
+                            <button type="submit" class="btn-icon btn-danger" title="Delete">🗑️</button>
+                        </form>
+                    </div>
+                </div>
+                
+                <div class="aggregate-stats">
+                    <div class="stat-grid">
+                        <div class="stat">
+                            <label>Activities</label>
+                            <value>{{ aggregate.totals.count }}</value>
+                        </div>
+                        <div class="stat">
+                            <label>Distance</label>
+                            <value>{{ "%.1f"|format(aggregate.totals.distance * 0.000621371) }} mi</value>
+                        </div>
+                        <div class="stat">
+                            <label>Time</label>
+                            <value>{{ (aggregate.totals.time // 3600)|int }}:{{ "%02d"|format((aggregate.totals.time % 3600) // 60) }}</value>
+                        </div>
+                        <div class="stat">
+                            <label>Elevation</label>
+                            <value>{{ "%.0f"|format(aggregate.totals.elevation * 3.28084) }} ft</value>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="aggregate-activities">
+                    <h4>Activities ({{ aggregate.activities|length }})</h4>
+                    <div class="activity-list">
+                        {% for activity in aggregate.activities[:3] %}
+                        <div class="activity-item">
+                            <span class="activity-name">{{ activity.name }}</span>
+                            <span class="activity-type">{{ activity.type }}</span>
+                        </div>
+                        {% endfor %}
+                        {% if aggregate.activities|length > 3 %}
+                        <div class="activity-item more">
+                            <span>+ {{ aggregate.activities|length - 3 }} more...</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="card-footer">
+                    <a href="/aggregates/{{ aggregate.id }}" class="btn btn-view">View Details</a>
+                    <span class="created-date">Created {{ aggregate.created_at[:10] }}</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="no-aggregates">
+            <div class="empty-state">
+                <h2>No Aggregates Yet</h2>
+                <p>Create your first aggregate to combine and analyze multiple activities together.</p>
+                <a href="/aggregates/new" class="btn btn-primary btn-large">+ Create Your First Aggregate</a>
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+<style>
+.aggregates-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+    border-bottom: 1px solid #e5e7eb;
+    padding-bottom: 20px;
+}
+
+.header h1 {
+    margin: 0;
+    color: #1f2937;
+}
+
+.header-controls {
+    display: flex;
+    gap: 15px;
+}
+
+.btn {
+    text-decoration: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-weight: 500;
+    transition: all 0.2s;
+    border: none;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.btn-primary {
+    background-color: #fc4c02;
+    color: white;
+}
+
+.btn-primary:hover {
+    background-color: #ea580c;
+    text-decoration: none;
+    color: white;
+}
+
+.btn-back {
+    background-color: #6b7280;
+    color: white;
+}
+
+.btn-back:hover {
+    background-color: #4b5563;
+    text-decoration: none;
+    color: white;
+}
+
+.btn-view {
+    background-color: #3b82f6;
+    color: white;
+    font-size: 0.875rem;
+}
+
+.btn-view:hover {
+    background-color: #2563eb;
+    text-decoration: none;
+    color: white;
+}
+
+.btn-large {
+    padding: 12px 24px;
+    font-size: 1.1rem;
+}
+
+.aggregates-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+    gap: 24px;
+}
+
+.aggregate-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    transition: all 0.2s ease;
+}
+
+.aggregate-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 20px;
+}
+
+.card-header h3 {
+    margin: 0;
+    color: #1f2937;
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+.card-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.btn-icon {
+    background: none;
+    border: none;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background-color 0.2s;
+}
+
+.btn-icon:hover {
+    background-color: #f3f4f6;
+}
+
+.btn-danger:hover {
+    background-color: #fef2f2;
+}
+
+.aggregate-stats {
+    margin-bottom: 20px;
+}
+
+.stat-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+}
+
+.stat {
+    background-color: #f9fafb;
+    padding: 12px;
+    border-radius: 8px;
+    text-align: center;
+}
+
+.stat label {
+    display: block;
+    font-size: 0.75rem;
+    color: #6b7280;
+    margin-bottom: 4px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+}
+
+.stat value {
+    display: block;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.aggregate-activities {
+    margin-bottom: 20px;
+}
+
+.aggregate-activities h4 {
+    margin: 0 0 12px 0;
+    color: #374151;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.activity-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.activity-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background-color: #f9fafb;
+    border-radius: 6px;
+    font-size: 0.875rem;
+}
+
+.activity-name {
+    color: #1f2937;
+    font-weight: 500;
+    flex: 1;
+    margin-right: 8px;
+}
+
+.activity-type {
+    background-color: #fc4c02;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: uppercase;
+}
+
+.activity-item.more {
+    color: #6b7280;
+    font-style: italic;
+    justify-content: center;
+}
+
+.card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid #f3f4f6;
+    padding-top: 16px;
+}
+
+.created-date {
+    color: #9ca3af;
+    font-size: 0.75rem;
+}
+
+.no-aggregates {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 400px;
+}
+
+.empty-state {
+    text-align: center;
+    max-width: 400px;
+}
+
+.empty-state h2 {
+    color: #4b5563;
+    margin-bottom: 12px;
+}
+
+.empty-state p {
+    color: #6b7280;
+    margin-bottom: 24px;
+    line-height: 1.5;
+}
+
+@media (max-width: 768px) {
+    .header {
+        flex-direction: column;
+        gap: 15px;
+        align-items: stretch;
+    }
+    
+    .header-controls {
+        justify-content: space-between;
+    }
+    
+    .aggregates-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+    
+    .aggregate-card {
+        padding: 20px;
+    }
+    
+    .stat-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+    }
+    
+    .card-footer {
+        flex-direction: column;
+        gap: 12px;
+        align-items: stretch;
+    }
+    
+    .btn-view {
+        text-align: center;
+    }
+}
+</style>
+{% endblock %}
