@@ -6,6 +6,7 @@ import os
 import requests
 from flask import Flask, redirect, request, session, render_template, url_for, flash
 from dotenv import load_dotenv
+from datetime import datetime
 
 # Load environment variables from .env file
 load_dotenv()
@@ -13,7 +14,7 @@ load_dotenv()
 # Initialize Flask app
 app = Flask(__name__)
 
-# Set a secret key for session management
+# Key for session management
 app.secret_key = os.getenv('FLASK_SECRET_KEY')
 
 # Strava API credentials
@@ -33,7 +34,7 @@ SCOPE = 'read,activity:read_all'
 
 # --- Flask Routes ---
 
-@app.route('/')
+@app.route('/home')
 def home():
     """
     Renders the home page with a link to connect to Strava.
@@ -74,7 +75,7 @@ def strava_callback():
 
     data = response.json()
     session['access_token'] = data['access_token']
-    session['athlete_data'] = data['athlete']
+    session['athlete_data'] = data['athlete'] # Stored as 'athlete_data'
     
     return redirect(url_for('profile'))
 
@@ -186,27 +187,26 @@ def activities(page=1):
 @app.route('/activity/<int:activity_id>')
 def activity_detail(activity_id):
     """Display detailed view of a single activity with map"""
-    print(f"DEBUG: Accessing activity {activity_id}")
+    if 'access_token' not in session:
+        return redirect(url_for('home'))
+        
     try:
         # Get activity details
         headers = {'Authorization': f'Bearer {session["access_token"]}'}
         
         # Fetch activity details
-        print(f"DEBUG: Making API request for activity {activity_id}")
         activity_response = requests.get(
             f'https://www.strava.com/api/v3/activities/{activity_id}',
             headers=headers
         )
-        print(f"DEBUG: API response status: {activity_response.status_code}")
         
         if activity_response.status_code != 200:
-            return f"<h1>Error loading activity</h1><p>Status: {activity_response.status_code}</p><a href='/activities'>Back to Activities</a>"
+            flash(f"Error loading activity: {activity_response.status_code}", 'error')
+            return redirect(url_for('activities'))
         
         activity = activity_response.json()
-        print(f"DEBUG: Activity loaded: {activity.get('name', 'Unknown')}")
         
         # Fetch activity streams for map data
-        print(f"DEBUG: Fetching streams for activity {activity_id}")
         streams_response = requests.get(
             f'https://www.strava.com/api/v3/activities/{activity_id}/streams',
             headers=headers,
@@ -215,21 +215,18 @@ def activity_detail(activity_id):
                 'key_by_type': 'true'
             }
         )
-        print(f"DEBUG: Streams response status: {streams_response.status_code}")
         
         streams = {}
         if streams_response.status_code == 200:
             streams = streams_response.json()
-            print(f"DEBUG: Streams loaded, keys: {list(streams.keys())}")
         
-        print(f"DEBUG: Rendering template")
         return render_template('activity_detail.html', 
                              activity=activity, 
                              streams=streams)
         
     except Exception as e:
-        print(f"DEBUG: Exception occurred: {str(e)}")
-        return f"<h1>Error</h1><p>{str(e)}</p><a href='/activities'>Back to Activities</a>"
+        flash(f"An unexpected error occurred: {str(e)}", 'error')
+        return redirect(url_for('activities'))
 
 
 def get_activity_streams(activity_id, access_token):
@@ -254,234 +251,62 @@ def get_activity_streams(activity_id, access_token):
     except Exception as e:
         print(f"Error fetching streams: {e}")
         return {}
-# In-memory storage for aggregates (replace with database in production)
-user_aggregates = {}
-
 @app.route('/aggregates')
 def aggregates():
     """
-    Display all user aggregates with create/edit functionality
+    Fetches and displays ALL of a user's activities from Strava.
     """
     if 'access_token' not in session:
         return redirect(url_for('home'))
-    
-    if 'athlete' not in session:
-        return redirect(url_for('profile'))
-    
-    athlete_id = session['athlete']['id']
-    user_aggs = user_aggregates.get(athlete_id, [])
-    
-    return render_template('aggregates.html', aggregates=user_aggs)
 
-@app.route('/aggregates/new')
-def new_aggregate():
-    """
-    Create a new aggregate - shows activity selection page
-    """
-    if 'access_token' not in session:
-        return redirect(url_for('home'))
-    
-    # Fetch all activities to choose from
     access_token = session['access_token']
     headers = {'Authorization': f'Bearer {access_token}'}
     
-    # Get more activities for selection (up to 200)
-    all_activities = []
+    activities_list = []
     page = 1
-    per_page = 50
-    
-    while len(all_activities) < 200:  # Limit to prevent too many API calls
-        response = requests.get(f'{STRAVA_API_URL}/athlete/activities', 
-                              headers=headers, 
-                              params={'per_page': per_page, 'page': page})
-        
-        if response.status_code == 200:
-            activities_data = response.json()
-            if not activities_data:  # No more activities
-                break
-            all_activities.extend(activities_data)
-            page += 1
-        else:
-            break
-    
-    return render_template('aggregate_form.html', 
-                         activities=all_activities, 
-                         aggregate=None, 
-                         mode='new')
+    # Strava's max per_page is 200, using this minimizes API calls
+    per_page = 200 
 
-@app.route('/aggregates/<int:aggregate_id>/edit')
-def edit_aggregate(aggregate_id):
-    """
-    Edit an existing aggregate
-    """
-    if 'access_token' not in session:
-        return redirect(url_for('home'))
-    
-    athlete_id = session['athlete']['id']
-    user_aggs = user_aggregates.get(athlete_id, [])
-    
-    # Find the aggregate
-    aggregate = None
-    for agg in user_aggs:
-        if agg['id'] == aggregate_id:
-            aggregate = agg
-            break
-    
-    if not aggregate:
-        return redirect(url_for('aggregates'))
-    
-    # Fetch all activities to choose from
-    access_token = session['access_token']
-    headers = {'Authorization': f'Bearer {access_token}'}
-    
-    all_activities = []
-    page = 1
-    per_page = 50
-    
-    while len(all_activities) < 200:
-        response = requests.get(f'{STRAVA_API_URL}/athlete/activities', 
-                              headers=headers, 
-                              params={'per_page': per_page, 'page': page})
-        
-        if response.status_code == 200:
-            activities_data = response.json()
-            if not activities_data:
-                break
-            all_activities.extend(activities_data)
-            page += 1
-        else:
-            break
-    
-    return render_template('aggregate_form.html', 
-                         activities=all_activities, 
-                         aggregate=aggregate, 
-                         mode='edit')
+    while True:
+        try:
+            # Fetch a page of activities
+            response = requests.get(
+                f'{STRAVA_API_URL}/athlete/activities',
+                headers=headers,
+                params={'per_page': per_page, 'page': page}
+            )
+            response.raise_for_status()  # Raises an HTTPError for bad responses (4xx or 5xx)
 
-@app.route('/aggregates/save', methods=['POST'])
-def save_aggregate():
-    """
-    Save a new or edited aggregate
-    """
-    if 'access_token' not in session:
-        return redirect(url_for('home'))
-    
-    athlete_id = session['athlete']['id']
-    
-    # Get form data
-    aggregate_id = request.form.get('aggregate_id', type=int)
-    name = request.form.get('name', '').strip()
-    selected_activities = request.form.getlist('selected_activities')
-    
-    if not name:
-        return redirect(url_for('aggregates'))
-    
-    # Initialize user aggregates if not exists
-    if athlete_id not in user_aggregates:
-        user_aggregates[athlete_id] = []
-    
-    # Fetch activity details for selected activities
-    access_token = session['access_token']
-    headers = {'Authorization': f'Bearer {access_token}'}
-    
-    aggregate_activities = []
-    total_distance = 0
-    total_time = 0
-    total_elevation = 0
-    
-    for activity_id in selected_activities:
-        response = requests.get(f'{STRAVA_API_URL}/activities/{activity_id}', headers=headers)
-        if response.status_code == 200:
-            activity = response.json()
-            aggregate_activities.append({
-                'id': activity['id'],
-                'name': activity['name'],
-                'type': activity['type'],
-                'distance': activity['distance'],
-                'elapsed_time': activity['elapsed_time'],
-                'total_elevation_gain': activity.get('total_elevation_gain', 0),
-                'start_date_local': activity['start_date_local']
-            })
+            data = response.json()
+
+            # If the page is empty, we've fetched all activities
+            if not data:
+                break
             
-            # Add to totals
-            total_distance += activity['distance']
-            total_time += activity['elapsed_time']
-            total_elevation += activity.get('total_elevation_gain', 0)
-    
-    # Create or update aggregate
-    aggregate_data = {
-        'name': name,
-        'activities': aggregate_activities,
-        'totals': {
-            'distance': total_distance,
-            'time': total_time,
-            'elevation': total_elevation,
-            'count': len(aggregate_activities)
-        },
-        'created_at': datetime.now().isoformat()
-    }
-    
-    if aggregate_id:  # Editing existing
-        for i, agg in enumerate(user_aggregates[athlete_id]):
-            if agg['id'] == aggregate_id:
-                aggregate_data['id'] = aggregate_id
-                aggregate_data['created_at'] = agg['created_at']  # Keep original creation date
-                user_aggregates[athlete_id][i] = aggregate_data
+            # Add the fetched activities to our list
+            activities_list.extend(data)
+            
+            # If we received fewer activities than we asked for, it must be the last page
+            if len(data) < per_page:
                 break
-    else:  # Creating new
-        # Generate new ID
-        existing_ids = [agg['id'] for agg in user_aggregates[athlete_id]]
-        new_id = max(existing_ids) + 1 if existing_ids else 1
-        aggregate_data['id'] = new_id
-        user_aggregates[athlete_id].append(aggregate_data)
-    
-    return redirect(url_for('aggregates'))
 
-@app.route('/aggregates/<int:aggregate_id>/delete', methods=['POST'])
-def delete_aggregate(aggregate_id):
-    """
-    Delete an aggregate
-    """
-    if 'access_token' not in session:
-        return redirect(url_for('home'))
-    
-    athlete_id = session['athlete']['id']
-    
-    if athlete_id in user_aggregates:
-        user_aggregates[athlete_id] = [
-            agg for agg in user_aggregates[athlete_id] 
-            if agg['id'] != aggregate_id
-        ]
-    
-    return redirect(url_for('aggregates'))
+            # Go to the next page
+            page += 1
 
-@app.route('/aggregates/<int:aggregate_id>')
-def view_aggregate(aggregate_id):
-    """
-    View a specific aggregate with detailed stats
-    """
-    if 'access_token' not in session:
-        return redirect(url_for('home'))
-    
-    athlete_id = session['athlete']['id']
-    user_aggs = user_aggregates.get(athlete_id, [])
-    
-    # Find the aggregate
-    aggregate = None
-    for agg in user_aggs:
-        if agg['id'] == aggregate_id:
-            aggregate = agg
-            break
-    
-    if not aggregate:
-        return redirect(url_for('aggregates'))
-    
-    return render_template('aggregate_detail.html', aggregate=aggregate)
+        except requests.exceptions.RequestException as e:
+            flash(f"An error occurred while fetching activities from Strava: {e}", "error")
+            return render_template('aggregates.html', activities=[], error=str(e))
+
+    # Render the template with the complete list of activities
+    return render_template('aggregates.html', activities=activities_list, error=None)
 
 @app.route('/logout')
 def logout():
-    """Logs out the user by clearing the session.
+    """
+    Clears the user session and redirects to the home page.
     """
     session.clear()
+    flash('You have been logged out.', 'info')
     return redirect(url_for('home'))
 
 # --- Main entry point ---
