@@ -34,7 +34,7 @@ SCOPE = 'read,activity:read_all'
 
 # --- Flask Routes ---
 
-@app.route('/home')
+@app.route('/')
 def home():
     """
     Renders the home page with a link to connect to Strava.
