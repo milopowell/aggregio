@@ -27,7 +27,7 @@ STRAVA_TOKEN_URL = 'https://www.strava.com/oauth/token'
 STRAVA_API_URL = 'https://www.strava.com/api/v3'
 
 # Redirect URI for Strava OAuth
-REDIRECT_URI = os.environ.get('REDIRECT_URI')
+REDIRECT_URI = os.getenv('REDIRECT_URI')
 
 #The permissions we want to request from Strava
 SCOPE = 'read,activity:read_all'
